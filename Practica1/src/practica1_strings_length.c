@@ -40,7 +40,7 @@ int main()
 		for (i=0; i<lines; i++){
 			fgets(str, 100, fp);
 			str[strlen(str)-1] = '\0';
-			vector[i] = malloc(sizeof(char)*(strlen(str)-1));
+			vector[i] = malloc(sizeof(char)*(strlen(str)+1));
 			strcpy(vector[i], str);
 		}
 		printf("S'han llegit %d línies\n",lines);
@@ -57,6 +57,8 @@ int main()
 	printf("Mostrant %d elements ordenats pel seu contingut: \n", lines_to_show);
 	for(i=0; i<lines_to_show; i++){
 		printf("%s\n", vector[i]);
+	}
+	for(i=0; i<lines; i++){
 		free(vector[i]);
 	}
 	free(vector);
