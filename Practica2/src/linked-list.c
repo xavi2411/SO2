@@ -165,7 +165,6 @@ void delete_list(list *l)
   {
     next = current->next;
     free_list_data(current->data);
-    free(next);
     free(current);
     current = next;
   }

@@ -30,7 +30,11 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 		if (dada) {
 			if (dades[i] != ',') {
 				if (commaCounter == 14) {
-					delay[j] = dades[i];
+					if (dades[i] == 'N' || dades[i] == '/' || dades[i] == 'A') {
+						delay[j] = '0';
+					}else {
+						delay[j] = dades[i];
+					}
 					j = j + 1;
 				}else if (commaCounter == 16) {
 					origin[j] = dades[i];
@@ -51,8 +55,8 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 			}
 		}
 	}
-	
-	delay[strlen(delay)-1] = '\0';
+
+	delay[strlen(delay)] = '\0';
 	values[0] = malloc(strlen(delay)+1);
 	strcpy(values[0], delay);
 	
@@ -146,6 +150,12 @@ int main(int argc, char **argv) {
 		return(-1);
 	}
 
+	/*char *a = malloc(4);
+	a[0] = 'I';
+	a[1] = 'A';
+	a[2] = 'D';
+	a[3] = '\0';*/
+
 	if( fgets (header, 400, fp)!=NULL )	/* Remove the header */
 	{
 		while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
@@ -172,7 +182,14 @@ int main(int argc, char **argv) {
 				if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
 				{	
 					l_data->num_flights = l_data->num_flights + 1;
+					/*if (!strcmp(aeroport_origen,a)) {
+						printf("%s | Delay abans:%d\n",aeroport_desti, l_data->delay);
+					}*/
 					l_data->delay = l_data->delay + retard;
+					/*if (!strcmp(aeroport_origen,a)) {
+						printf("%s | Delay despres:%d\n",aeroport_desti, l_data->delay);
+						printf("-----------------\n");
+					}*/
 				}
 				else	/* Case: Airport not in the linked-list yet */
 				{
@@ -184,25 +201,32 @@ int main(int argc, char **argv) {
 					insert_list(n_data->l, l_data);
 				}
 			}
+			for(i=0; i < 3; i++) {
+				free(info[i]);
+			}
+			free(info);
+			free(aeroport_origen);
+			free(aeroport_desti);
 		}
 	}
+	fclose(fp);
 
 	//Computació:
 
 	/* 1) Busquem el retard mig de cada vol per l'aeroport especificat */
 	n_data = find_node(tree, origin_airport);
+	printf("1)Media de retardos para %s\n", origin_airport);
 	if ( n_data != NULL )
 	{
-		printf("%s\n",n_data->key);
+		printf("Retardos para el aeropuerto %s\n",n_data->key);
 		l_item = n_data->l->first;
 		while(l_item != NULL) {
-			printf(" Amb desti %s : \n",l_item->data->key);
-			printf("  Retard: %f\n", l_item->data->delay / (float) l_item->data->num_flights);	
+			printf("	%s --  %.3f minutos\n", l_item->data->key, (l_item->data->delay / (float) l_item->data->num_flights));
 			l_item = l_item->next;
 		}
 	}else
 	{
-		printf("Unknown airport not in list.");
+		printf("El aeropuerto %s no existe en el arbol\n", origin_airport);
 	}
 	/* Com que tan sols quan afegim un list_item amb insert list es suma 1 a num_items, aixo hauria de funcionar */
 
@@ -211,19 +235,26 @@ int main(int argc, char **argv) {
 	int *p_max;
 	p_max = &max;
 
-	char *airport_max = malloc(3);
+	char *airport_max = malloc(4);
 	tree_path_r(tree->root, p_max, airport_max);
-	printf("Max: %s amb %d vols",airport_max, *p_max);
-	exit(0);
-
 	
+	printf("\n2)Aeropuerto con más destinos\n");
+	printf("Aeropuerto con mas destinos: %s, destinos %d\n",airport_max, *p_max);
+	
+	/* Alliberament de memòria */
+	free(airport_max);
+
+	for(i=0; i<lines; i++) {
+		free(vector[i]);
+	}
+	free(vector);
+
 	/* Delete the tree */
 	delete_tree(tree);
 	free(tree);
 
-	/*for(i=0; i<lines; i++) {
-		free(vector[i]);
-	}*/
-	free(vector);
+	
+
+	return 1;
 }
 
