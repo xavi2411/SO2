@@ -30,7 +30,6 @@ typedef struct node_data_
     // This is the additional information that will be stored
     // within the structure. You may adapt it to your needs:
     // add or remove fields as you need.
-    //int num_vegades; 
     list *l;
 } node_data; 
 

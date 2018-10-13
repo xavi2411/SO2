@@ -38,6 +38,9 @@
 
 static void free_node_data(node_data *data)
 {
+    free(data->key);
+    delete_list(data->l);
+    free(data->l);
     free(data);
 }
 
@@ -232,12 +235,14 @@ static void insert_fixup(rb_tree *tree, node *x) {
  */
 
 void insert_node(rb_tree *tree, node_data *data) {
+
     node *current, *parent, *x;
 
     /* Find where node belongs */
     current = tree->root;
     parent = 0;
     while (current != NIL) {
+
         if (compare_key1_equal_to_key2(data->key, current->data->key)) {
             printf("insert_node: trying to insert but primary key is already in tree.\n");
             exit(1);
@@ -312,7 +317,7 @@ static void delete_tree_recursive(node *x)
 
     if (x->left != NIL)
         delete_tree_recursive(x->left);
-    delete_list(x->data->l);                //Afegim per alliberar memmoria de la linked-list
+    
     free_node_data(x->data);
     free(x);
 }

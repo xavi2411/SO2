@@ -11,6 +11,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 
 /**
  * We include the linked-list.h header. Note the double
@@ -28,6 +30,7 @@
 
 static void free_list_data(list_data *data)
 {
+  free(data->key);
   free(data); 
 }
 
@@ -40,14 +43,12 @@ static void free_list_data(list_data *data)
 
 static int compare_key1_equal_key2(LIST_KEY_TYPE key1, LIST_KEY_TYPE key2)
 {
-  int rc;
-
-  rc = 0;
-
-  if (key1 == key2)
-    rc = 1;
-
-  return rc;
+  int rc = strcmp(key1,key2);
+    if (rc == 0) { // key1 = key2
+        return 1;
+    }else { // key1 != key2
+        return 0;
+    }
 }
 
 /**
@@ -164,6 +165,7 @@ void delete_list(list *l)
   {
     next = current->next;
     free_list_data(current->data);
+    free(next);
     free(current);
     current = next;
   }
