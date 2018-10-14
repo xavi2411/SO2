@@ -38,6 +38,9 @@ typedef struct list_data_ {
   // This is the additional information that will be stored
   // within the structure. This additional information is associated
   // to the key. You may include any field you may need useful.
+  // 
+  // num_fligths: per indicar el nombre de vols a la destinacio indicada per key
+  // delay: suma dels retards acumulat a la destinacio indicada per key
   int num_flights;
   int delay;
 } list_data;

@@ -5,6 +5,14 @@
 #include "red-black-tree.h"
 #include "linked-list.h"
 
+/*
+* 
+* Recorre l'arbre en preorder a partir d'un node donat buscant l'aeroport amb més
+* destinacions, guardant el valor màxim a la direcció de memòria on apunta max i 
+* guardant l'aeroport en concret a la direcció de memòria que apunta airport_max
+* 
+*/
+
 void tree_path_r(node *node, int *max, char *airport_max){
 	if(node != NIL) {
 		if (*max < node->data->l->num_items) {
@@ -15,6 +23,15 @@ void tree_path_r(node *node, int *max, char *airport_max){
 		tree_path_r( node->right, max, airport_max);
 	}
 }
+
+/*
+*
+* A partir d'una cadena de caràcters donades, dades, es recorre la cadena per tal 
+* d'obtenir els valors delay, origin i destination, les quals sabem que es troben
+* a la columna 15, 17 i 18 respectivament, per tant, tenim que es troben despres
+* de la 14a, 16a i 17a coma ',' de la cadena dades
+* 
+*/
 
 char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, origin, destination
 	char **values = malloc(3*sizeof(char *));
@@ -150,12 +167,6 @@ int main(int argc, char **argv) {
 		return(-1);
 	}
 
-	/*char *a = malloc(4);
-	a[0] = 'I';
-	a[1] = 'A';
-	a[2] = 'D';
-	a[3] = '\0';*/
-
 	if( fgets (header, 400, fp)!=NULL )	/* Remove the header */
 	{
 		while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
@@ -182,14 +193,7 @@ int main(int argc, char **argv) {
 				if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
 				{	
 					l_data->num_flights = l_data->num_flights + 1;
-					/*if (!strcmp(aeroport_origen,a)) {
-						printf("%s | Delay abans:%d\n",aeroport_desti, l_data->delay);
-					}*/
 					l_data->delay = l_data->delay + retard;
-					/*if (!strcmp(aeroport_origen,a)) {
-						printf("%s | Delay despres:%d\n",aeroport_desti, l_data->delay);
-						printf("-----------------\n");
-					}*/
 				}
 				else	/* Case: Airport not in the linked-list yet */
 				{

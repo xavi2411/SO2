@@ -30,6 +30,8 @@ typedef struct node_data_
     // This is the additional information that will be stored
     // within the structure. You may adapt it to your needs:
     // add or remove fields as you need.
+    // 
+    // l: llista de destinacions de l'aeroport indicat per key
     list *l;
 } node_data; 
 

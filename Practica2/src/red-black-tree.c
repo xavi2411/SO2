@@ -34,6 +34,9 @@
  * dynamic memory that is stored inside node_data. The memory is allocated
  * by the user code, just before the node is inserted in the tree. 
  *
+ * Hem afegit l'alliberament de memòria de key al modificar el seu type per char *
+ * I també alliberem la memòria de la llista que hem afegit 
+ * 
  */
 
 static void free_node_data(node_data *data)
@@ -49,6 +52,9 @@ static void free_node_data(node_data *data)
  * Compares if key1 is less than key2. Should return 1 (true) if condition
  * is satisfied, 0 (false) otherwise.
  *
+ * Utilitzem la funció strcmp(key1,key2) per comparar el contingut de key1 i key2
+ * Si key1 és menor a key2 la strcmp retorna un nombre negatiu
+ * 
  */
 
 static int compare_key1_less_than_key2(RBTREE_KEY_TYPE key1, RBTREE_KEY_TYPE key2)
@@ -68,6 +74,9 @@ static int compare_key1_less_than_key2(RBTREE_KEY_TYPE key1, RBTREE_KEY_TYPE key
  * Compares if key1 is equal to key2. Should return 1 (true) if condition
  * is satisfied, 0 (false) otherwise.
  *
+ * Utilitzem la funció strcmp(key1,key2) per comparar el contingut de key1 i key2
+ * Si key1 és igual a key2 la strcmp retorna 0
+ * 
  */
 
 static int compare_key1_equal_to_key2(RBTREE_KEY_TYPE key1, RBTREE_KEY_TYPE key2)

@@ -39,6 +39,9 @@ static void free_list_data(list_data *data)
  * Compares if key1 is equal to key2. Should return 1 (true) if condition
  * is satisfied, 0 (false) otherwise.
  *
+ * Utilitzem strcmp per comparar el contingut de les claus, si són iguals 
+ * strcmp retorna 0
+ * 
  */
 
 static int compare_key1_equal_key2(LIST_KEY_TYPE key1, LIST_KEY_TYPE key2)
