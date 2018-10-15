@@ -26,6 +26,8 @@
  * Free data element. The user should adapt this function to their needs.  This
  * function is called internally by deleteList.
  *
+ * Afegim alliberament de memòria de la key
+ * 
  */
 
 static void free_list_data(list_data *data)
