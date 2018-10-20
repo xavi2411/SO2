@@ -9,6 +9,9 @@
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 
+
+int lines;
+
 /**
  * 
  *  Menu
@@ -121,7 +124,6 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 rb_tree* creacioArbre(char *airports, char *flights) {
 	FILE *fp;
 	char str[10];
-	int lines;
 	int i;
 	char **vector;
 
@@ -249,7 +251,7 @@ void retardMig(char *origin_airport, rb_tree *tree) {
 	list_item *l_item;
 
 	n_data = find_node(tree, origin_airport);
-	printf("1)Media de retardos para %s\n", origin_airport);
+	printf("Media de retardos para %s\n", origin_airport);
 	if ( n_data != NULL )
 	{
 		printf("Retardos para el aeropuerto %s\n",n_data->key);
@@ -272,24 +274,138 @@ void mesDestinacions(rb_tree *tree) {
 	char *airport_max = malloc(4);
 	tree_path_r(tree->root, p_max, airport_max);
 	
-	printf("\n2)Aeropuerto con más destinos\n");
+	printf("\nAeropuerto con más destinos\n");
 	printf("Aeropuerto con mas destinos: %s, destinos %d\n",airport_max, *p_max);
 	free(airport_max);
 }
 
 void alliberaMemoriaArbre(rb_tree *tree) {
+	printf("Alliberant arbre\n");
 	delete_tree(tree);
 	free(tree);
-
 }
 
-rb_tree* carregarArbreDeDisc() {
-	return NULL;
+rb_tree* carregarArbreDeDisc(rb_tree *tree, char *file) {
+	FILE *fp;
+
+	int magic;
+	int i, j;
+	char origen[4];
+	char desti[4];
+	int num_items;
+	int num_vols;
+	int retard;
+	node_data *n_data;
+	list_data *l_data;
+
+	fp = fopen(file, "r");
+	if (fp != NULL) {
+		//llegim magic number
+		fread(&magic, 4, 1,fp);
+		if (magic == MAGIC_NUMBER) {
+			//inicialitzem l'arbre
+			tree = (rb_tree *) malloc(sizeof(rb_tree));
+			init_tree(tree);
+
+			//llegim el nombre de nodes de l'arbre
+			fread(&lines, 4, 1, fp);
+			for(i = 0; i < lines; i++) {
+
+				n_data = malloc(sizeof(node_data));
+
+				//llegim codi IATA origen
+				fread(origen, 1, 3, fp);
+				origen[3] = '\0';
+
+				n_data->key = malloc(4);
+				strcpy(n_data->key, origen);
+				n_data->l = (list *) malloc(sizeof(list));
+				init_list(n_data->l);
+
+				//llegim el numero de destins
+				fread(&num_items, 4, 1, fp);
+
+				for(j = 0; j < num_items; j++) {
+
+					l_data = (list_data *) malloc(sizeof(list_data));
+
+					//llegim codi IATA destí
+					fread(desti, 1, 3, fp);
+					desti[3] = '\0';
+
+					l_data->key = malloc(4);
+					strcpy(l_data->key, desti);
+
+					//llegim el nombre de vols
+					fread(&num_vols, 4, 1, fp);
+
+					l_data->num_flights = num_vols;
+
+					//llegim el retard total
+					fread(&retard, 4, 1, fp);
+
+					l_data->delay = retard;
+
+					insert_list(n_data->l, l_data);
+				}
+
+				insert_node(tree, n_data);
+			}
+		}
+		fclose(fp);
+	}else {
+		perror("Error opening file");
+	}
+	return tree;
 }
 
-void guardarArbreDisc(rb_tree *tree) {
-
+void escriureArbre(FILE *fp, node *current) {
+	if(current != NIL) {
+		//escrivim codi IATA origen
+		fwrite(current->data->key, 1, 3, fp);
+		//escrivim el numero de destins
+		fwrite(&current->data->l->num_items, 4, 1, fp);
+		list_item *item = current->data->l->first;
+		while(item != NULL) {
+			//escrivim codi IATA destí
+			fwrite(item->data->key, 1, 3, fp);
+			//escrivim el nombre de vols
+			fwrite(&item->data->num_flights, 4, 1, fp);
+			//escrivim el retard total
+			fwrite(&item->data->delay, 4, 1, fp);
+			item = item->next;
+		}
+		escriureArbre(fp, current->left);
+		escriureArbre(fp, current->right);
+	}	
 }
+
+void guardarArbreDisc(rb_tree *tree, char *file) {
+	FILE *fp;
+	int magic = MAGIC_NUMBER;
+
+	node *current;
+
+
+	fp = fopen(file, "w");
+
+	if (fp != NULL) {
+		//escrivim magic number
+		fwrite(&magic, 4, 1, fp);
+		//escrivim el nombre de nodes de l'arbre
+		fwrite(&lines, 4, 1, fp);
+
+		current = tree->root;
+
+		escriureArbre(fp, current);
+		fclose(fp);
+
+	}else {
+		perror("Error opening file");
+	}
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -305,8 +421,6 @@ int main(int argc, char **argv)
         opcio = menu();
         printf("\n\n");
 
-       /* Feu servir aquest codi com a pantilla */
-
         switch (opcio) {
             case 1:
                 printf("Introdueix fitxer que conte llistat d'aeroports: ");
@@ -319,6 +433,7 @@ int main(int argc, char **argv)
 
                 if (tree != NULL) {
                 	alliberaMemoriaArbre(tree);
+                	tree = NULL;
                 }
 
                 tree = creacioArbre(str1,str2);
@@ -331,11 +446,10 @@ int main(int argc, char **argv)
                 str1[strlen(str1)-1]=0;
 
                 if (tree != NULL) {
-                	guardarArbreDisc(tree);
+                	guardarArbreDisc(tree, str1);
                 }else {
                 	printf("No hi ha arbre creat");
                 }
-                /* Falta codi */
 
                 break;
 
@@ -346,9 +460,10 @@ int main(int argc, char **argv)
 
                 if (tree != NULL) {
                 	alliberaMemoriaArbre(tree);
+                	tree = NULL;
                 }
 
-                tree = carregarArbreDeDisc();
+                tree = carregarArbreDeDisc(tree, str1);
 
                 /* Falta codi */
 
