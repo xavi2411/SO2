@@ -251,6 +251,9 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		n_data->l = (list *) malloc(sizeof(list));
 		init_list(n_data->l);
 
+		/* Initialize mutex key */
+		pthread_mutex_init(n_data->clau, NULL);
+
 	    /* We insert the node in the tree */
 		insert_node(tree, n_data);
 	}
@@ -372,6 +375,9 @@ rb_tree* carregarArbreDeDisc(rb_tree *tree, char *file) {
 				strcpy(n_data->key, origen);
 				n_data->l = (list *) malloc(sizeof(list));
 				init_list(n_data->l);
+
+				/* Initialize mutex key */
+				pthread_mutex_init(n_data->clau, NULL);
 
 				//llegim el numero de destins
 				fread(&num_items, 4, 1, fp);

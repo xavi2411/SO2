@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <pthread.h>
 #include "linked-list.h"
 
 /**
@@ -33,6 +34,7 @@ typedef struct node_data_
     // 
     // l: llista de destinacions de l'aeroport indicat per key
     list *l;
+    pthread _mutex_t clau; /* mutex key to lock and unlock node when using on multithread */
 } node_data; 
 
 /**
@@ -53,7 +55,7 @@ typedef struct node_ {
 
     /* Data to be stored at each node */
     node_data *data; /* data stored in node */
-} node;     // Afegir atribut MUTEX (clau) pels fils
+} node;
 
 
 /**
