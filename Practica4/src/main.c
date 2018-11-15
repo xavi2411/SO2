@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "red-black-tree.h"
 #include "linked-list.h"
@@ -8,9 +9,19 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
+#define NUM_FILS     1
+#define NUM_LINIES	 10000
 
 
 int lines;
+
+pthread_t ntid[NUM_FILS];
+
+/* Definim uns estructura per passar els arguments al fil */
+typedef struct args_fil {
+	FILE *fitxer;
+	rb_tree *tree;
+} args_fil;
 
 /**
  * 
@@ -121,6 +132,66 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 	return values;
 }
 
+void *llegir_dades_fil(void *arg) {
+	char dades[120];
+	char **info;
+	int retard, i;
+	char *aeroport_origen, *aeroport_desti;
+	node_data *n_data;
+	list_data *l_data;
+	args_fil* args;
+	args = (args_fil *) arg;
+
+	rb_tree *tree = (rb_tree *) args->tree;
+	FILE *fp = args->fitxer;
+
+	while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
+	{
+		dades[strlen(dades)-1] = '\0';
+
+		info = getInfoSeparatedByCommas(dades);
+
+		retard = atoi(info[0]);
+
+		aeroport_origen = malloc(strlen(info[1])+1);
+		strcpy(aeroport_origen, info[1]);
+
+		aeroport_desti = malloc(strlen(info[2])+1);
+		strcpy(aeroport_desti, info[2]);
+
+		/* We search the node */
+		n_data = find_node(tree, aeroport_origen); 
+
+		if ( n_data != NULL )
+		{
+			l_data = find_list(n_data->l, aeroport_desti);
+
+			if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
+			{	
+				l_data->num_flights = l_data->num_flights + 1;
+				l_data->delay = l_data->delay + retard;
+			}
+			else	/* Case: Airport not in the linked-list yet */
+			{
+				l_data = (list_data *) malloc(sizeof(list_data));
+				l_data->key = malloc(strlen(aeroport_desti)+1);
+				strcpy(l_data->key,aeroport_desti);
+				l_data->num_flights = 1;
+				l_data->delay = retard;
+				insert_list(n_data->l, l_data);
+			}
+		}
+		for(i=0; i < 3; i++) {
+			free(info[i]);
+		}
+		free(info);
+		free(aeroport_origen);
+		free(aeroport_desti);
+	}
+	return ((void *) 0);
+}
+
+
 rb_tree* creacioArbre(char *airports, char *flights) {
 	FILE *fp;
 	char str[10];
@@ -128,13 +199,8 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 	char **vector;
 
 	char header[400];
-	char dades[120];
-	char **info;
-	list_data *l_data;
 
-	char *aeroport_origen, *aeroport_desti;
-	int retard;
-
+	int err;
 
 	fp = fopen(airports , "r"); 
 	if(fp == NULL)
@@ -192,50 +258,28 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 	}
 
 	if( fgets (header, 400, fp)!=NULL )	/* Remove the header */
-	{
-		while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
-		{
-			dades[strlen(dades)-1] = '\0';
+	{	
+		args_fil* args = malloc(sizeof(args_fil));
+		args->fitxer = fp;
+		args->tree = tree;
 
-			info = getInfoSeparatedByCommas(dades);
-
-			retard = atoi(info[0]);
-
-			aeroport_origen = malloc(strlen(info[1])+1);
-			strcpy(aeroport_origen, info[1]);
-
-			aeroport_desti = malloc(strlen(info[2])+1);
-			strcpy(aeroport_desti, info[2]);
-
-			/* We search the node */
-			n_data = find_node(tree, aeroport_origen); 
-
-			if ( n_data != NULL )
-			{
-				l_data = find_list(n_data->l, aeroport_desti);
-
-				if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
-				{	
-					l_data->num_flights = l_data->num_flights + 1;
-					l_data->delay = l_data->delay + retard;
-				}
-				else	/* Case: Airport not in the linked-list yet */
-				{
-					l_data = (list_data *) malloc(sizeof(list_data));
-					l_data->key = malloc(strlen(aeroport_desti)+1);
-					strcpy(l_data->key,aeroport_desti);
-					l_data->num_flights = 1;
-					l_data->delay = retard;
-					insert_list(n_data->l, l_data);
-				}
+		//creació dels fils
+		for(i = 0; i < NUM_FILS; i++) {
+			err = pthread_create(&ntid[i], NULL, llegir_dades_fil, (void *)args);
+			if (err != 0) {
+				printf("no puc crear el fil.\n");
+				exit(1);
 			}
-			for(i=0; i < 3; i++) {
-				free(info[i]);
-			}
-			free(info);
-			free(aeroport_origen);
-			free(aeroport_desti);
 		}
+		//Esperem a qe acabin els fils
+		for(i = 0; i < NUM_FILS; i++) {
+			err = pthread_join(ntid[i], NULL);
+			if (err != 0) {
+				printf("error pthread_join amb fil %d\n", i);
+				exit(1);
+			}
+		}
+		free(args);
 	}
 	fclose(fp);
 
