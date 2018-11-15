@@ -10,7 +10,7 @@
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
 #define NUM_FILS     1
-#define NUM_LINIES	 10000
+#define NUM_LINIES	 10000 //depenen del nombre de fils
 
 
 int lines;
@@ -132,7 +132,7 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 	return values;
 }
 
-void *llegir_dades_fil(void *arg) {
+void *llegir_dades_fil(void *arg) { 
 	char dades[120];
 	char **info;
 	int retard, i;
@@ -145,6 +145,13 @@ void *llegir_dades_fil(void *arg) {
 	rb_tree *tree = (rb_tree *) args->tree;
 	FILE *fp = args->fitxer;
 
+	/* 
+	   1) Fer un lock mutex del fitxer i llegir totes les linies i guardarles en un array, un cop llegides, unlock de l'array
+	   2) Per cada linia del fitxer es busca el node a l'arbre, es fa un lock del mutex de l'atribut del node, s'escriu i es fa unlock
+	*/
+
+	// Com es passa el mateix punter fp, no fa falta calcular a partir de quina linia ha de llegir, perque el 1r fil bloquejara, llegira 1000 dades p. ex.
+	// aleshores quan es desbloqueji, es començaran a llegir les dades a partir de la posicio 1001
 	while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
 	{
 		dades[strlen(dades)-1] = '\0';

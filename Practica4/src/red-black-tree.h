@@ -53,7 +53,7 @@ typedef struct node_ {
 
     /* Data to be stored at each node */
     node_data *data; /* data stored in node */
-} node;
+} node;     // Afegir atribut MUTEX (clau) pels fils
 
 
 /**
