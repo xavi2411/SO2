@@ -34,7 +34,7 @@ typedef struct node_data_
     // 
     // l: llista de destinacions de l'aeroport indicat per key
     list *l;
-    pthread _mutex_t clau; /* mutex key to lock and unlock node when using on multithread */
+    pthread_mutex_t clau; /* mutex key to lock and unlock node when using on multithread */
 } node_data; 
 
 /**

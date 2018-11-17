@@ -44,7 +44,7 @@ static void free_node_data(node_data *data)
     free(data->key);
     delete_list(data->l);
     free(data->l);
-    pthread_mutex_destroy(data->clau);
+    pthread_mutex_destroy(&data->clau);
     free(data);
 }
 

@@ -9,8 +9,8 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     1
-#define NUM_LINIES	 10000 //depen del nombre de fils si el que volem es llegir totes les linies
+#define NUM_FILS     8
+#define NUM_LINIES	 1300 //depen del nombre de fils si el que volem es llegir totes les linies
 
 
 pthread_mutex_t clau_fitxer = PTHREAD_MUTEX_INITIALIZER;
@@ -134,9 +134,12 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 }
 
 void *llegir_dades_fil(void *arg) { 
+	int num_linies = -1; 
+
 	char dades[120];
 	char **info;
-	int retard, i;
+	char **linia_dades;
+	int retard, i, j;
 	char *aeroport_origen, *aeroport_desti;
 	node_data *n_data;
 	list_data *l_data;
@@ -146,18 +149,29 @@ void *llegir_dades_fil(void *arg) {
 	rb_tree *tree = (rb_tree *) args->tree;
 	FILE *fp = args->fitxer;
 
-	/* 
-	   1) Fer un lock mutex del fitxer i llegir totes les linies i guardarles en un array, un cop llegides, unlock de l'array
-	   2) Per cada linia del fitxer es busca el node a l'arbre, es fa un lock del mutex de l'atribut del node, s'escriu i es fa unlock
-	*/
+	linia_dades = malloc(NUM_LINIES * sizeof(char*));
 
-	// Com es passa el mateix punter fp, no fa falta calcular a partir de quina linia ha de llegir, perque el 1r fil bloquejara, llegira 1000 dades p. ex.
-	// aleshores quan es desbloqueji, es començaran a llegir les dades a partir de la posicio 1001
-	while ( fgets (dades, 120, fp)!=NULL )	/* We take whole lines until we finish the document */
-	{
-		dades[strlen(dades)-1] = '\0';
+	pthread_mutex_lock(&clau_fitxer); //Bloquegem la clau del fitxer de dades per llegir-ne les dades
 
-		info = getInfoSeparatedByCommas(dades);
+	for(i = 0; i < NUM_LINIES; i++) {
+		if (fgets (dades, 120, fp) != NULL) {
+			dades[strlen(dades)-1] = '\0';
+			linia_dades[i] = malloc(sizeof(char)*(strlen(dades)+1));
+			strcpy(linia_dades[i], dades);
+		}else {
+			num_linies = i; // En principi tots els fils llegeixen "NUM_LINIES" linies, però si s'arriba al final del fitxer s'hauran llegit "i" linies
+			break;
+		}
+	}
+	if (num_linies == -1) { // Si no s'ha arribat al final del fitxer, el nombre de linies llegides serà "NUM_LINIES"
+		num_linies = NUM_LINIES;
+	}
+
+	pthread_mutex_unlock(&clau_fitxer); //Desbloquegem la clau del fitxer de dades un cop llegides les dades
+
+	for(j = 0; j < num_linies; j++) {
+
+		info = getInfoSeparatedByCommas(linia_dades[j]);
 
 		retard = atoi(info[0]);
 
@@ -186,7 +200,13 @@ void *llegir_dades_fil(void *arg) {
 				strcpy(l_data->key,aeroport_desti);
 				l_data->num_flights = 1;
 				l_data->delay = retard;
+
+				pthread_mutex_lock(&n_data->clau); //Bloquegem la clau del node per escriure'n les dades llegides
+
 				insert_list(n_data->l, l_data);
+
+				pthread_mutex_unlock(&n_data->clau); //Desbloquegem la clau del node un cop llegides les dades
+
 			}
 		}
 		for(i=0; i < 3; i++) {
@@ -196,6 +216,12 @@ void *llegir_dades_fil(void *arg) {
 		free(aeroport_origen);
 		free(aeroport_desti);
 	}
+
+	for(i = 0; i < num_linies; i++){
+		free(linia_dades[i]);
+	}
+	free(linia_dades);
+
 	return ((void *) 0);
 }
 
@@ -253,7 +279,7 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		init_list(n_data->l);
 
 		/* Initialize mutex key */
-		pthread_mutex_init(n_data->clau, NULL);
+		pthread_mutex_init(&n_data->clau, NULL);
 
 	    /* We insert the node in the tree */
 		insert_node(tree, n_data);
@@ -378,7 +404,7 @@ rb_tree* carregarArbreDeDisc(rb_tree *tree, char *file) {
 				init_list(n_data->l);
 
 				/* Initialize mutex key */
-				pthread_mutex_init(n_data->clau, NULL);
+				pthread_mutex_init(&n_data->clau, NULL);
 
 				//llegim el numero de destins
 				fread(&num_items, 4, 1, fp);
