@@ -9,8 +9,8 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     8
-#define NUM_LINIES	 1300 //depen del nombre de fils si el que volem es llegir totes les linies
+#define NUM_FILS     4
+#define NUM_LINIES	 1000 //depen del nombre de fils si el que volem es llegir totes les linies
 
 
 pthread_mutex_t clau_fitxer = PTHREAD_MUTEX_INITIALIZER;
@@ -133,7 +133,9 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 	return values;
 }
 
-void *llegir_dades_fil(void *arg) { 
+int lectura_dades(rb_tree *tree, FILE *fp) {
+
+	int final_fitxer = 0;
 	int num_linies = -1; 
 
 	char dades[120];
@@ -143,13 +145,9 @@ void *llegir_dades_fil(void *arg) {
 	char *aeroport_origen, *aeroport_desti;
 	node_data *n_data;
 	list_data *l_data;
-	args_fil* args;
-	args = (args_fil *) arg;
-
-	rb_tree *tree = (rb_tree *) args->tree;
-	FILE *fp = args->fitxer;
-
+	
 	linia_dades = malloc(NUM_LINIES * sizeof(char*));
+
 
 	pthread_mutex_lock(&clau_fitxer); //Bloquegem la clau del fitxer de dades per llegir-ne les dades
 
@@ -160,6 +158,7 @@ void *llegir_dades_fil(void *arg) {
 			strcpy(linia_dades[i], dades);
 		}else {
 			num_linies = i; // En principi tots els fils llegeixen "NUM_LINIES" linies, però si s'arriba al final del fitxer s'hauran llegit "i" linies
+			final_fitxer = 1;
 			break;
 		}
 	}
@@ -221,7 +220,24 @@ void *llegir_dades_fil(void *arg) {
 		free(linia_dades[i]);
 	}
 	free(linia_dades);
+	//printf("Lectura de %d línies pel thread %d\n", num_linies, pthread_self());
+	return final_fitxer;
+}
 
+void *llegir_dades_fil(void *arg) { 
+
+	args_fil *args;
+	args = (args_fil *) arg;
+
+	rb_tree *tree = (rb_tree *) args->tree;
+	FILE *fp = args->fitxer;
+
+	int final_fitxer = 0; // Indica si fp ha arribat al final del fitxer
+
+	while(final_fitxer == 0) {
+		final_fitxer = lectura_dades(tree, fp);
+	}
+	
 	return ((void *) 0);
 }
 
@@ -496,6 +512,9 @@ int main(int argc, char **argv)
     char str1[MAXLINE], str2[MAXLINE];
     int opcio;
 
+    struct timeval tv1, tv2; // Cronologic
+	clock_t t1, t2; // CPU
+
     rb_tree *tree = NULL;
 
     if (argc != 1)
@@ -520,7 +539,16 @@ int main(int argc, char **argv)
                 	tree = NULL;
                 }
 
+                gettimeofday(&tv1, NULL);
+				t1 = clock();
+
                 tree = creacioArbre(str1,str2);
+
+                gettimeofday(&tv2, NULL);
+				t2 = clock();
+
+				printf("Temps de CPU: %f seconds\n", (double)(t2 - t1) / (double) CLOCKS_PER_SEC);
+				printf("Temps cronologic = %f seconds\n", (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 + (double) (tv2.tv_sec - tv1.tv_sec));
 
                 break;
 
