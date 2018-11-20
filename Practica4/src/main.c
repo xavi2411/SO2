@@ -183,8 +183,11 @@ int lectura_dades(rb_tree *tree, FILE *fp) {
 		/* We search the node */
 		n_data = find_node(tree, aeroport_origen); 
 
+
 		if ( n_data != NULL )
 		{
+			pthread_mutex_lock(&n_data->clau); //Bloquegem la clau del node per escriure'n les dades llegides
+
 			l_data = find_list(n_data->l, aeroport_desti);
 
 			if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
@@ -200,14 +203,13 @@ int lectura_dades(rb_tree *tree, FILE *fp) {
 				l_data->num_flights = 1;
 				l_data->delay = retard;
 
-				pthread_mutex_lock(&n_data->clau); //Bloquegem la clau del node per escriure'n les dades llegides
-
 				insert_list(n_data->l, l_data);
-
-				pthread_mutex_unlock(&n_data->clau); //Desbloquegem la clau del node un cop llegides les dades
-
 			}
+
+			pthread_mutex_unlock(&n_data->clau); //Desbloquegem la clau del node un cop llegides les dades
 		}
+
+
 		for(i=0; i < 3; i++) {
 			free(info[i]);
 		}
