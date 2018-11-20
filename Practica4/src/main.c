@@ -9,8 +9,8 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     4
-#define NUM_LINIES	 1000 //depen del nombre de fils si el que volem es llegir totes les linies
+#define NUM_FILS     8
+#define NUM_LINIES	 100000 //depen del nombre de fils si el que volem es llegir totes les linies
 
 
 pthread_mutex_t clau_fitxer = PTHREAD_MUTEX_INITIALIZER;
