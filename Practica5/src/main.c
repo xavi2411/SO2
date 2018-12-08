@@ -9,20 +9,40 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     4
-#define NUM_LINIES	 1000 //depen del nombre de fils si el que volem es llegir totes les linies
+#define NUM_FILS     4		// F
+#define NUM_LINIES	 1000	// N
+#define NUM_CELLS	 8		// B
 
 
-pthread_mutex_t clau_fitxer = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cua_cons, cua_prod;
+
 int lines;
 
 pthread_t ntid[NUM_FILS];
 
 /* Definim uns estructura per passar els arguments al fil */
+
+typedef struct cell {
+    char **linies;
+    int mida;
+} cell;
+
+typedef struct buffer {
+    struct cell *cell[NUM_CELLS];
+    int num_elements;
+    int final_fitxer;
+} buffer;
+
 typedef struct args_fil {
 	FILE *fitxer;
 	rb_tree *tree;
+	buffer *buff;
 } args_fil;
+
+
+
+
 
 /**
  * 
@@ -149,7 +169,7 @@ int lectura_dades(rb_tree *tree, FILE *fp) {
 	linia_dades = malloc(NUM_LINIES * sizeof(char*));
 
 
-	pthread_mutex_lock(&clau_fitxer); //Bloquegem la clau del fitxer de dades per llegir-ne les dades
+	//pthread_mutex_lock(&clau_fitxer); //Bloquegem la clau del fitxer de dades per llegir-ne les dades
 
 	for(i = 0; i < NUM_LINIES; i++) {
 		if (fgets (dades, 120, fp) != NULL) {
@@ -166,7 +186,7 @@ int lectura_dades(rb_tree *tree, FILE *fp) {
 		num_linies = NUM_LINIES;
 	}
 
-	pthread_mutex_unlock(&clau_fitxer); //Desbloquegem la clau del fitxer de dades un cop llegides les dades
+	//pthread_mutex_unlock(&clau_fitxer); //Desbloquegem la clau del fitxer de dades un cop llegides les dades
 
 	for(j = 0; j < num_linies; j++) {
 
@@ -243,15 +263,165 @@ void *llegir_dades_fil(void *arg) {
 	return ((void *) 0);
 }
 
+/**
+ *
+ *
+ *
+ *
+ *
+ *	Practica 5
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
+void *lectura_fitxer(void *arg) {
+
+	args_fil *args = (args_fil *) arg;
+	FILE *fp = args->fitxer;
+	buffer *buff = args->buff;
+	
+	char dades[120];
+	int i;
+
+	fgets (dades, 120, fp);
+
+	cell *cela = malloc(sizeof(struct cell));
+	cela->linies = malloc(NUM_LINIES * sizeof(char*));
+	cela->mida = NUM_LINIES;
+
+	while(!buff->final_fitxer) {
+		printf("lectura de 1000 linies\n");
+		for(i = 0; i < NUM_LINIES; i++) {
+			if (fgets (dades, 120, fp) != NULL) {
+				dades[strlen(dades)-1] = '\0';
+				cela->linies[i] = malloc(sizeof(char)*(strlen(dades)+1));
+				strcpy(cela->linies[i], dades);
+			}else {
+				buff->final_fitxer = 1;
+				cela->mida = i;
+				break;
+			}
+		}
+		pthread_mutex_lock(&clau_buffer);
+		if (buff->num_elements == NUM_CELLS) { // El buffer esta ple
+			pthread_cond_wait(&cua_prod, &clau_buffer);
+		}
+		for(i = 0; i < NUM_CELLS; i++) {
+			if (buff->cell[i] == NULL) { //trobo cela buida
+				buff->cell[i] = cela;
+				break;
+			}
+		}
+		if (buff->num_elements == 0) {
+			pthread_cond_signal(&cua_cons);
+		}
+		buff->num_elements += 1;
+
+		pthread_mutex_unlock(&clau_buffer); //Desbloquegem la clau del buffer de dades un cop llegides
+	}
+	return ((void *) 0);
+}
+
+void *processament_dades(void *arg) {
+
+	args_fil *args = (args_fil *) arg;
+	rb_tree *tree = args->tree;
+	buffer *buff = args->buff;
+	
+	char **info;
+	int retard, i, j;
+	char *aeroport_origen, *aeroport_desti;
+	node_data *n_data;
+	list_data *l_data;
+
+	cell *cela;
+
+	while(!buff->final_fitxer || buff->num_elements != 0) {
+		printf("processament de 1000 dades\n");
+		pthread_mutex_lock(&clau_buffer);
+		if (buff->num_elements == 0) { // El buffer esta buit
+			pthread_cond_wait(&cua_cons, &clau_buffer);
+		}
+		for(i = 0; i < NUM_CELLS; i++) {
+			if (buff->cell[i] != NULL) { //trobo cela buida NO FUNCIONA COM S'ESPERA
+				cela = buff->cell[i];
+				buff->cell[i] = NULL;
+				break;
+			}
+		}
+		if (buff->num_elements == NUM_CELLS) {
+			pthread_cond_signal(&cua_prod);
+		}
+		buff->num_elements -= 1;
+		pthread_mutex_unlock(&clau_buffer); //Desbloquegem la clau del buffer de dades un cop llegides
+
+		/* Ara tenim les dades a processar a la variable local cela */
+		for(j = 0; j < cela->mida; j++) {
+
+			info = getInfoSeparatedByCommas(cela->linies[j]);
+
+			retard = atoi(info[0]);
+
+			aeroport_origen = malloc(strlen(info[1])+1);
+			strcpy(aeroport_origen, info[1]);
+
+			aeroport_desti = malloc(strlen(info[2])+1);
+			strcpy(aeroport_desti, info[2]);
+
+			/* We search the node */
+			n_data = find_node(tree, aeroport_origen); 
+
+
+			if ( n_data != NULL )
+			{
+				pthread_mutex_lock(&n_data->clau); //Bloquegem la clau del node per escriure'n les dades llegides
+
+				l_data = find_list(n_data->l, aeroport_desti);
+
+				if ( l_data != NULL )	/* Case: Airport in the linked-list already */
+				{	
+					l_data->num_flights = l_data->num_flights + 1;
+					l_data->delay = l_data->delay + retard;
+				}
+				else	/* Case: Airport not in the linked-list yet */
+				{
+					l_data = (list_data *) malloc(sizeof(list_data));
+					l_data->key = malloc(strlen(aeroport_desti)+1);
+					strcpy(l_data->key,aeroport_desti);
+					l_data->num_flights = 1;
+					l_data->delay = retard;
+
+					insert_list(n_data->l, l_data);
+				}
+
+				pthread_mutex_unlock(&n_data->clau); //Desbloquegem la clau del node un cop llegides les dades
+			}
+
+
+			for(i=0; i < 3; i++) {
+				free(info[i]);
+			}
+			free(info);
+			free(aeroport_origen);
+			free(aeroport_desti);
+		}
+	}
+	return ((void *) 0);
+}
+
 
 rb_tree* creacioArbre(char *airports, char *flights) {
+
 	FILE *fp;
 	char str[10];
 	int i;
 	char **vector;
-
 	char header[400];
-
 	int err;
 
 	fp = fopen(airports , "r"); 
@@ -314,10 +484,54 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 
 	if( fgets (header, 400, fp)!=NULL )	/* Remove the header */
 	{	
+		pthread_cond_init(&cua_cons, NULL);
+		pthread_cond_init(&cua_prod, NULL);
+		
+		// Initialize buffer
+		buffer *buff = malloc(sizeof(buffer));
+		for(i = 0; i < NUM_CELLS; i++) {
+			buff->cell[i] = malloc(sizeof(cell));
+			buff->cell[i] = NULL;
+		}
+		buff->num_elements = 0;
+		buff->final_fitxer = 0;
+
+
 		args_fil* args = malloc(sizeof(args_fil));
 		args->fitxer = fp;
 		args->tree = tree;
+		args->buff = buff;
 
+		pthread_t productor;
+		pthread_t consumidor;
+
+		err = pthread_create(&productor, NULL, lectura_fitxer, (void *)args);
+		if (err != 0) {
+			printf("no puc crear el productor.\n");
+			exit(1);
+		}
+
+		err = pthread_create(&consumidor, NULL, processament_dades, (void *)args);
+		if (err != 0) {
+			printf("no puc crear el consumidor.\n");
+			exit(1);
+		}
+
+		err = pthread_join(productor, NULL);
+		if (err != 0) {
+			printf("error pthread_join amb productor %d\n", i);
+			exit(1);
+		}
+		err = pthread_join(consumidor, NULL);
+		if (err != 0) {
+			printf("error pthread_join amb consumidor %d\n", i);
+			exit(1);
+		}
+
+		pthread_cond_destroy(&cua_prod);
+		pthread_cond_destroy(&cua_cons);
+
+		/*
 		//creació dels fils
 		for(i = 0; i < NUM_FILS; i++) {
 			err = pthread_create(&ntid[i], NULL, llegir_dades_fil, (void *)args);
@@ -333,7 +547,12 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 				printf("error pthread_join amb fil %d\n", i);
 				exit(1);
 			}
+		}*/
+		printf("abans d'alliberar memoria\n");
+		for(i = 0; i < NUM_CELLS; i++) {
+	       	free(buff->cell[i]);
 		}
+	   	free(buff);
 		free(args);
 	}
 	fclose(fp);
