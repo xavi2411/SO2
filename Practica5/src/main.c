@@ -34,11 +34,16 @@ typedef struct buffer {
     int final_fitxer;
 } buffer;
 
-typedef struct args_fil {
+typedef struct args_prod {
 	FILE *fitxer;
+	buffer *buff;
+} args_prod;
+
+
+typedef struct args_cons {
 	rb_tree *tree;
 	buffer *buff;
-} args_fil;
+} args_cons;
 
 
 
@@ -153,116 +158,6 @@ char** getInfoSeparatedByCommas(char *dades) { // obtenim els valors delay, orig
 	return values;
 }
 
-int lectura_dades(rb_tree *tree, FILE *fp) {
-
-	int final_fitxer = 0;
-	int num_linies = -1; 
-
-	char dades[120];
-	char **info;
-	char **linia_dades;
-	int retard, i, j;
-	char *aeroport_origen, *aeroport_desti;
-	node_data *n_data;
-	list_data *l_data;
-	
-	linia_dades = malloc(NUM_LINIES * sizeof(char*));
-
-
-	//pthread_mutex_lock(&clau_fitxer); //Bloquegem la clau del fitxer de dades per llegir-ne les dades
-
-	for(i = 0; i < NUM_LINIES; i++) {
-		if (fgets (dades, 120, fp) != NULL) {
-			dades[strlen(dades)-1] = '\0';
-			linia_dades[i] = malloc(sizeof(char)*(strlen(dades)+1));
-			strcpy(linia_dades[i], dades);
-		}else {
-			num_linies = i; // En principi tots els fils llegeixen "NUM_LINIES" linies, però si s'arriba al final del fitxer s'hauran llegit "i" linies
-			final_fitxer = 1;
-			break;
-		}
-	}
-	if (num_linies == -1) { // Si no s'ha arribat al final del fitxer, el nombre de linies llegides serà "NUM_LINIES"
-		num_linies = NUM_LINIES;
-	}
-
-	//pthread_mutex_unlock(&clau_fitxer); //Desbloquegem la clau del fitxer de dades un cop llegides les dades
-
-	for(j = 0; j < num_linies; j++) {
-
-		info = getInfoSeparatedByCommas(linia_dades[j]);
-
-		retard = atoi(info[0]);
-
-		aeroport_origen = malloc(strlen(info[1])+1);
-		strcpy(aeroport_origen, info[1]);
-
-		aeroport_desti = malloc(strlen(info[2])+1);
-		strcpy(aeroport_desti, info[2]);
-
-		/* We search the node */
-		n_data = find_node(tree, aeroport_origen); 
-
-
-		if ( n_data != NULL )
-		{
-			pthread_mutex_lock(&n_data->clau); //Bloquegem la clau del node per escriure'n les dades llegides
-
-			l_data = find_list(n_data->l, aeroport_desti);
-
-			if ( l_data !=NULL )	/* Case: Airport in the linked-list already */
-			{	
-				l_data->num_flights = l_data->num_flights + 1;
-				l_data->delay = l_data->delay + retard;
-			}
-			else	/* Case: Airport not in the linked-list yet */
-			{
-				l_data = (list_data *) malloc(sizeof(list_data));
-				l_data->key = malloc(strlen(aeroport_desti)+1);
-				strcpy(l_data->key,aeroport_desti);
-				l_data->num_flights = 1;
-				l_data->delay = retard;
-
-				insert_list(n_data->l, l_data);
-			}
-
-			pthread_mutex_unlock(&n_data->clau); //Desbloquegem la clau del node un cop llegides les dades
-		}
-
-
-		for(i=0; i < 3; i++) {
-			free(info[i]);
-		}
-		free(info);
-		free(aeroport_origen);
-		free(aeroport_desti);
-	}
-
-	for(i = 0; i < num_linies; i++){
-		free(linia_dades[i]);
-	}
-	free(linia_dades);
-	//printf("Lectura de %d línies pel thread %d\n", num_linies, pthread_self());
-	return final_fitxer;
-}
-
-void *llegir_dades_fil(void *arg) { 
-
-	args_fil *args;
-	args = (args_fil *) arg;
-
-	rb_tree *tree = (rb_tree *) args->tree;
-	FILE *fp = args->fitxer;
-
-	int final_fitxer = 0; // Indica si fp ha arribat al final del fitxer
-
-	while(final_fitxer == 0) {
-		final_fitxer = lectura_dades(tree, fp);
-	}
-	
-	return ((void *) 0);
-}
-
 /**
  *
  *
@@ -281,7 +176,7 @@ void *llegir_dades_fil(void *arg) {
 
 void *lectura_fitxer(void *arg) {
 
-	args_fil *args = (args_fil *) arg;
+	args_prod *args = (args_prod *) arg;
 	FILE *fp = args->fitxer;
 	buffer *buff = args->buff;
 	
@@ -290,12 +185,13 @@ void *lectura_fitxer(void *arg) {
 
 	fgets (dades, 120, fp);
 
+	cell *tmp;
 	cell *cela = malloc(sizeof(struct cell));
-	cela->linies = malloc(NUM_LINIES * sizeof(char*));
-	cela->mida = NUM_LINIES;
 
 	while(!buff->final_fitxer) {
-		printf("lectura de 1000 linies\n");
+		cela->linies = malloc(NUM_LINIES * sizeof(char*));
+		cela->mida = NUM_LINIES;
+
 		for(i = 0; i < NUM_LINIES; i++) {
 			if (fgets (dades, 120, fp) != NULL) {
 				dades[strlen(dades)-1] = '\0';
@@ -307,29 +203,35 @@ void *lectura_fitxer(void *arg) {
 				break;
 			}
 		}
+
 		pthread_mutex_lock(&clau_buffer);
 		if (buff->num_elements == NUM_CELLS) { // El buffer esta ple
 			pthread_cond_wait(&cua_prod, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
-			if (buff->cell[i] == NULL) { //trobo cela buida
+			if (buff->cell[i]->mida == -1) { //	Busco cela buida
+				tmp = buff->cell[i];
 				buff->cell[i] = cela;
+				cela = tmp;
 				break;
 			}
 		}
+
 		if (buff->num_elements == 0) {
 			pthread_cond_signal(&cua_cons);
 		}
 		buff->num_elements += 1;
 
 		pthread_mutex_unlock(&clau_buffer); //Desbloquegem la clau del buffer de dades un cop llegides
+
 	}
+	free(cela);
 	return ((void *) 0);
 }
 
 void *processament_dades(void *arg) {
 
-	args_fil *args = (args_fil *) arg;
+	args_cons *args = (args_cons *) arg;
 	rb_tree *tree = args->tree;
 	buffer *buff = args->buff;
 	
@@ -339,18 +241,22 @@ void *processament_dades(void *arg) {
 	node_data *n_data;
 	list_data *l_data;
 
-	cell *cela;
+	cell *tmp;
+	cell *cela = malloc(sizeof(struct cell));
+	cela->mida = -1;
 
 	while(!buff->final_fitxer || buff->num_elements != 0) {
-		printf("processament de 1000 dades\n");
+
+
 		pthread_mutex_lock(&clau_buffer);
 		if (buff->num_elements == 0) { // El buffer esta buit
 			pthread_cond_wait(&cua_cons, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
-			if (buff->cell[i] != NULL) { //trobo cela buida NO FUNCIONA COM S'ESPERA
+			if (buff->cell[i]->mida != -1) { // Busco cela amb dades
+				tmp = cela;
 				cela = buff->cell[i];
-				buff->cell[i] = NULL;
+				buff->cell[i] = tmp;
 				break;
 			}
 		}
@@ -409,8 +315,15 @@ void *processament_dades(void *arg) {
 			free(info);
 			free(aeroport_origen);
 			free(aeroport_desti);
+
+			free(cela->linies[j]);
 		}
+		free(cela->linies);
+		cela->mida = -1;
 	}
+
+	free(cela);
+
 	return ((void *) 0);
 }
 
@@ -491,27 +404,30 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		buffer *buff = malloc(sizeof(buffer));
 		for(i = 0; i < NUM_CELLS; i++) {
 			buff->cell[i] = malloc(sizeof(cell));
-			buff->cell[i] = NULL;
+			buff->cell[i]->mida = -1;
 		}
+
 		buff->num_elements = 0;
 		buff->final_fitxer = 0;
 
+		args_prod* args_p = malloc(sizeof(args_prod));
+		args_p->fitxer = fp;
+		args_p->buff = buff;		
 
-		args_fil* args = malloc(sizeof(args_fil));
-		args->fitxer = fp;
-		args->tree = tree;
-		args->buff = buff;
+		args_cons* args_c = malloc(sizeof(args_cons));
+		args_c->tree = tree;
+		args_c->buff = buff;
 
 		pthread_t productor;
 		pthread_t consumidor;
 
-		err = pthread_create(&productor, NULL, lectura_fitxer, (void *)args);
+		err = pthread_create(&productor, NULL, lectura_fitxer, (void *)args_p);
 		if (err != 0) {
 			printf("no puc crear el productor.\n");
 			exit(1);
 		}
 
-		err = pthread_create(&consumidor, NULL, processament_dades, (void *)args);
+		err = pthread_create(&consumidor, NULL, processament_dades, (void *)args_c);
 		if (err != 0) {
 			printf("no puc crear el consumidor.\n");
 			exit(1);
@@ -553,7 +469,8 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 	       	free(buff->cell[i]);
 		}
 	   	free(buff);
-		free(args);
+		free(args_p);
+		free(args_c);
 	}
 	fclose(fp);
 
