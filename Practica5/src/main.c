@@ -9,17 +9,14 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     4		// F
-#define NUM_LINIES	 1000	// N
-#define NUM_CELLS	 8		// B
+#define NUM_FILS     4		// F: Nombre de consumidors
+#define NUM_LINIES	 1000	// N: Nombre de línies per bloc a llegir pel productor
+#define NUM_CELLS	 2		// B: Nombre de blocs del buffer
 
 
-pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cua_cons, cua_prod;
-
-int lines;
-
-pthread_t ntid[NUM_FILS];
+pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;	// Clau mutex del buffer
+pthread_cond_t cua_prod, cua_cons;									// Variable condicional del productor
+//pthread_cond_t cua_cons[NUM_FILS];							// Variables condicionals de cada consumidor
 
 /* Definim uns estructura per passar els arguments al fil */
 
@@ -182,6 +179,7 @@ void *lectura_fitxer(void *arg) {
 	
 	char dades[120];
 	int i;
+	int final_fitxer = 0;
 
 	fgets (dades, 120, fp);
 
@@ -198,7 +196,7 @@ void *lectura_fitxer(void *arg) {
 				cela->linies[i] = malloc(sizeof(char)*(strlen(dades)+1));
 				strcpy(cela->linies[i], dades);
 			}else {
-				buff->final_fitxer = 1;
+				final_fitxer = 1;
 				cela->mida = i;
 				break;
 			}
@@ -206,10 +204,12 @@ void *lectura_fitxer(void *arg) {
 
 		pthread_mutex_lock(&clau_buffer);
 		if (buff->num_elements == NUM_CELLS) { // El buffer esta ple
+			//printf("Productor bloquejat, buffer ple\n");
 			pthread_cond_wait(&cua_prod, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida == -1) { //	Busco cela buida
+				//printf("#) Productor escriu %d linies al buffer\n", cela->mida);
 				tmp = buff->cell[i];
 				buff->cell[i] = cela;
 				cela = tmp;
@@ -221,9 +221,9 @@ void *lectura_fitxer(void *arg) {
 			pthread_cond_signal(&cua_cons);
 		}
 		buff->num_elements += 1;
+		buff->final_fitxer = final_fitxer;
 
 		pthread_mutex_unlock(&clau_buffer); //Desbloquegem la clau del buffer de dades un cop llegides
-
 	}
 	free(cela);
 	return ((void *) 0);
@@ -247,13 +247,14 @@ void *processament_dades(void *arg) {
 
 	while(!buff->final_fitxer || buff->num_elements != 0) {
 
-
 		pthread_mutex_lock(&clau_buffer);
 		if (buff->num_elements == 0) { // El buffer esta buit
+			//printf("Consumidor bloquejat, buffer buit\n");
 			pthread_cond_wait(&cua_cons, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida != -1) { // Busco cela amb dades
+				//printf("*) Consumidor llegeix %d linies del buffer\n", buff->cell[i]->mida);
 				tmp = cela;
 				cela = buff->cell[i];
 				buff->cell[i] = tmp;
@@ -336,6 +337,7 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 	char **vector;
 	char header[400];
 	int err;
+	int lines;
 
 	fp = fopen(airports , "r"); 
 	if(fp == NULL)
@@ -418,7 +420,9 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		args_c->tree = tree;
 		args_c->buff = buff;
 
-		pthread_t productor;
+		pthread_t productor;				// Fil productor
+		//pthread_t consumidors[NUM_FILS];	// Fils consumidors
+
 		pthread_t consumidor;
 
 		err = pthread_create(&productor, NULL, lectura_fitxer, (void *)args_p);
@@ -523,7 +527,7 @@ void alliberaMemoriaArbre(rb_tree *tree) {
 rb_tree* carregarArbreDeDisc(rb_tree *tree, char *file) {
 	FILE *fp;
 
-	int magic;
+	int magic, lines;
 	int i, j;
 	char origen[4];
 	char desti[4];
@@ -621,6 +625,7 @@ void escriureArbre(FILE *fp, node *current) {
 void guardarArbreDisc(rb_tree *tree, char *file) {
 	FILE *fp;
 	int magic = MAGIC_NUMBER;
+	int lines;
 
 	node *current;
 
