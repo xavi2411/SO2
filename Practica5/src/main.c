@@ -15,10 +15,10 @@
 
 
 pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;	// Clau mutex del buffer
-pthread_cond_t cua_prod;									// Variable condicional del productor
-pthread_cond_t cua_cons[NUM_FILS];							// Variables condicionals de cada consumidor
+pthread_cond_t cua_prod, cua_cons;							// Variable condicional del productor
+//pthread_cond_t cua_cons[NUM_FILS];							// Variables condicionals de cada consumidor
 
-int consumidors_bloquejats[NUM_FILS];						// Array que indica quins consumidors estan bloquejats: 1 => bloquejat, 0 => lliure
+//int consumidors_bloquejats[NUM_FILS];						// Array que indica quins consumidors estan bloquejats: 1 => bloquejat, 0 => lliure
 
 /* Definim una estructura per passar els arguments al fil */
 
@@ -208,9 +208,9 @@ void *lectura_fitxer(void *arg) {
 		}
 
 		// Bloquegem la clau del buffer per escriure-hi dades
-		pthread_mutex_lock(&clau_buffer); 
-		if (buff->num_elements == NUM_CELLS) { // El buffer és ple
-			// Esperem fins que un consumidor ens enviï un senyal indicant que el buffer ja no és ple
+		pthread_mutex_lock(&clau_buffer);
+		while (buff->num_elements == NUM_CELLS) { // El buffer és ple
+			// Esperem fins que un consumidor enviï un senyal indicant que el buffer ja no és ple
 			printf("----Productor bloquejat----\n");
 			pthread_cond_wait(&cua_prod, &clau_buffer);
 		}
@@ -226,12 +226,13 @@ void *lectura_fitxer(void *arg) {
 
 		if (buff->num_elements == 0) {
 			// Si el buffer estava buit, desbloquegem un Consumidor
-			for (i = 0; i < NUM_FILS; i++) {
+			pthread_cond_broadcast(&cua_cons);
+
+			/*for (i = 0; i < NUM_FILS; i++) {
 				if (consumidors_bloquejats[i] == 1) {
-					pthread_cond_signal(&cua_cons[i]);
 					break;
 				}
-			}
+			}*/
 		}
 		buff->num_elements += 1;
 		buff->final_fitxer = final_fitxer;
@@ -269,13 +270,10 @@ void *processament_dades(void *arg) {
 
 		// Bloquegem la clau del buffer per llegir dades
 		pthread_mutex_lock(&clau_buffer); 
-		if (buff->num_elements == 0) { // El buffer esta buit
+		while (buff->num_elements == 0) { // El buffer esta buit
 			// El Consumidor espera el senyal que indica que el buffer deixa d'estar buit
 			printf("----Consumidor %d bloquejat----\n", id);
-			consumidors_bloquejats[id] = 1;
-			pthread_cond_wait(&cua_cons[id], &clau_buffer);
-			printf("____Consumidor %d desbloquejat____\n", id);
-
+			pthread_cond_wait(&cua_cons, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida != -1) { // Busco cela amb dades
@@ -450,11 +448,11 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 
 		// Inicialitzem variables condicionals per a cada fil
 		pthread_cond_init(&cua_prod, NULL);
-		//pthread_cond_init(&cua_cons, NULL);
+		pthread_cond_init(&cua_cons, NULL);
 
-		for(i = 0; i < NUM_FILS; i++) {
+		/*for(i = 0; i < NUM_FILS; i++) {
 			pthread_cond_init(&cua_cons[i], NULL);
-		}
+		}*/
 
 
 		// Creem fil Productor
@@ -466,7 +464,7 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 
 		// Creem fils Consumidors
 		for(i = 0; i < NUM_FILS; i++) {
-			consumidors_bloquejats[i] = 0;
+			//consumidors_bloquejats[i] = 0;
 
 			args_c = malloc(sizeof(args_cons));
 			args_c->tree = tree;
@@ -497,11 +495,11 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 
 		// Destruim variables condicionals
 		pthread_cond_destroy(&cua_prod);
-		//pthread_cond_destroy(&cua_cons);
+		pthread_cond_destroy(&cua_cons);
 
-		for(i = 0; i < NUM_FILS; i++) {
+		/*for(i = 0; i < NUM_FILS; i++) {
 			pthread_cond_destroy(&cua_cons[i]);
-		}
+		}*/
 
 		// Alliberem memòria del buffer
 		for(i = 0; i < NUM_CELLS; i++) {
