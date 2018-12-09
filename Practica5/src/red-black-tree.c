@@ -110,6 +110,7 @@ node sentinel = { NIL, NIL, 0, BLACK, NULL};
 void init_tree(rb_tree *tree)
 {
     tree->root = NIL;
+    tree->num_elements = 0;
 }
 
 /**

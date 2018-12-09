@@ -15,10 +15,8 @@
 
 
 pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;	// Clau mutex del buffer
-pthread_cond_t cua_prod, cua_cons;							// Variable condicional del productor
-//pthread_cond_t cua_cons[NUM_FILS];							// Variables condicionals de cada consumidor
+pthread_cond_t cua_prod, cua_cons;							// Variable condicional del productor i dels consumidors
 
-//int consumidors_bloquejats[NUM_FILS];						// Array que indica quins consumidors estan bloquejats: 1 => bloquejat, 0 => lliure
 
 /* Definim una estructura per passar els arguments al fil */
 
@@ -211,12 +209,10 @@ void *lectura_fitxer(void *arg) {
 		pthread_mutex_lock(&clau_buffer);
 		while (buff->num_elements == NUM_CELLS) { // El buffer és ple
 			// Esperem fins que un consumidor enviï un senyal indicant que el buffer ja no és ple
-			printf("----Productor bloquejat----\n");
 			pthread_cond_wait(&cua_prod, &clau_buffer);
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida == -1) { //	Busco cela buida
-				printf("#) Productor escriu %d línies al buffer\n", cela->mida);
 				tmp = buff->cell[i];
 				buff->cell[i] = cela;
 				cela = tmp;
@@ -227,12 +223,6 @@ void *lectura_fitxer(void *arg) {
 		if (buff->num_elements == 0) {
 			// Si el buffer estava buit, desbloquegem un Consumidor
 			pthread_cond_broadcast(&cua_cons);
-
-			/*for (i = 0; i < NUM_FILS; i++) {
-				if (consumidors_bloquejats[i] == 1) {
-					break;
-				}
-			}*/
 		}
 		buff->num_elements += 1;
 		buff->final_fitxer = final_fitxer;
@@ -254,8 +244,6 @@ void *processament_dades(void *arg) {
 
 	free(args);
 	
-	printf("----Consumidor %d----\n", id);	
-
 	char **info;
 	int retard, i, j;
 	char *aeroport_origen, *aeroport_desti;
@@ -271,13 +259,17 @@ void *processament_dades(void *arg) {
 		// Bloquegem la clau del buffer per llegir dades
 		pthread_mutex_lock(&clau_buffer); 
 		while (buff->num_elements == 0) { // El buffer esta buit
+			if (buff->final_fitxer) { // Si ja s'ha llegit tot el fitxer i el buffer es buit, evitem que el fil es bloquegi i el fem acabar
+				pthread_mutex_unlock(&clau_buffer); //Desbloquegem la clau del buffer de dades un cop llegides
+				free(cela);
+				return ((void *) 0);
+			}
 			// El Consumidor espera el senyal que indica que el buffer deixa d'estar buit
-			printf("----Consumidor %d bloquejat----\n", id);
 			pthread_cond_wait(&cua_cons, &clau_buffer);
+
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida != -1) { // Busco cela amb dades
-				printf("*) Consumidor %d llegeix %d línies del buffer\n", id, buff->cell[i]->mida);
 				tmp = cela;
 				cela = buff->cell[i];
 				buff->cell[i] = tmp;
@@ -391,6 +383,9 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 
 	/* Initialize the tree */
 	init_tree(tree);
+	tree->num_elements = lines;
+
+
 	for (i = 0; i < lines; i++) {
 		/* Each airort is different so we don't check if node already exists in tree */
 
@@ -450,10 +445,6 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		pthread_cond_init(&cua_prod, NULL);
 		pthread_cond_init(&cua_cons, NULL);
 
-		/*for(i = 0; i < NUM_FILS; i++) {
-			pthread_cond_init(&cua_cons[i], NULL);
-		}*/
-
 
 		// Creem fil Productor
 		err = pthread_create(&productor, NULL, lectura_fitxer, (void *)args_p);
@@ -496,10 +487,6 @@ rb_tree* creacioArbre(char *airports, char *flights) {
 		// Destruim variables condicionals
 		pthread_cond_destroy(&cua_prod);
 		pthread_cond_destroy(&cua_cons);
-
-		/*for(i = 0; i < NUM_FILS; i++) {
-			pthread_cond_destroy(&cua_cons[i]);
-		}*/
 
 		// Alliberem memòria del buffer
 		for(i = 0; i < NUM_CELLS; i++) {
@@ -581,6 +568,8 @@ rb_tree* carregarArbreDeDisc(rb_tree *tree, char *file) {
 
 			//llegim el nombre de nodes de l'arbre
 			fread(&lines, 4, 1, fp);
+			tree->num_elements = lines;
+
 			for(i = 0; i < lines; i++) {
 
 				n_data = malloc(sizeof(node_data));
@@ -658,7 +647,6 @@ void escriureArbre(FILE *fp, node *current) {
 void guardarArbreDisc(rb_tree *tree, char *file) {
 	FILE *fp;
 	int magic = MAGIC_NUMBER;
-	int lines;
 
 	node *current;
 
@@ -669,7 +657,7 @@ void guardarArbreDisc(rb_tree *tree, char *file) {
 		//escrivim magic number
 		fwrite(&magic, 4, 1, fp);
 		//escrivim el nombre de nodes de l'arbre
-		fwrite(&lines, 4, 1, fp);
+		fwrite(&tree->num_elements, 4, 1, fp);
 
 		current = tree->root;
 
