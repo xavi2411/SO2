@@ -9,9 +9,9 @@
 
 #define MAXLINE      200
 #define MAGIC_NUMBER 0x0133C8F9
-#define NUM_FILS     4		// F: Nombre de consumidors
-#define NUM_LINIES	 1000	// N: Nombre de línies per bloc a llegir pel productor
-#define NUM_CELLS	 8		// B: Nombre de blocs del buffer
+#define NUM_FILS     7		// F: Nombre de consumidors
+#define NUM_LINIES	 1000000	// N: Nombre de línies per bloc a llegir pel productor
+#define NUM_CELLS	 16		// B: Nombre de blocs del buffer
 
 
 pthread_mutex_t clau_buffer = PTHREAD_MUTEX_INITIALIZER;	// Clau mutex del buffer
@@ -213,6 +213,7 @@ void *lectura_fitxer(void *arg) {
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida == -1) { //	Busco cela buida
+				printf("#) Productor escriu %d linies al buffer\n", cela->mida);
 				tmp = buff->cell[i];
 				buff->cell[i] = cela;
 				cela = tmp;
@@ -270,6 +271,7 @@ void *processament_dades(void *arg) {
 		}
 		for(i = 0; i < NUM_CELLS; i++) {
 			if (buff->cell[i]->mida != -1) { // Busco cela amb dades
+				printf("*) Consumidor %d llegeix %d linies del buffer\n", id, buff->cell[i]->mida);
 				tmp = cela;
 				cela = buff->cell[i];
 				buff->cell[i] = tmp;
