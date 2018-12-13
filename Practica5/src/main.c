@@ -184,8 +184,6 @@ void *lectura_fitxer(void *arg) {
 	int i;
 	int final_fitxer = 0;
 
-	fgets (dades, 120, fp);
-
 	cell *tmp;
 	cell *cela = malloc(sizeof(struct cell));
 
